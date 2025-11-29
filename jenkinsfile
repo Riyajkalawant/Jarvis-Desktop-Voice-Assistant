@@ -1,54 +1,44 @@
 pipeline {
-  agent any
-  environment {
-    REMOTE_USER = "ubuntu"
-    REMOTE_HOST = "65.0.87.102"
-    REMOTE_DIR  = "/home/ubuntu/jarvis"
-    CRED_ID     = "javaubuntu"
-  }
-
-
-  stages {
-    stage('Checkout') {
-      steps {
-        git branch: 'main', url: 'https://github.com/Riyajkalawant/Jarvis-Desktop-Voice-Assistant.git'
-      }
-    }
-
-    stage('Package & Transfer') {
-      steps {
-        sshagent(credentials: ["${CRED_ID}"]) {
-          sh '''
-            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "mkdir -p ${REMOTE_DIR}"
-            rsync -avz --delete --exclude='.git' ./ ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/
-          '''
-        }
-      }
-    }
-    stage('Remote: Setup & Restart') {
-    steps {
-    sshagent(credentials: ['javaubuntu']) {
-        sh '''
-            ssh -o StrictHostKeyChecking=no ubuntu@65.0.87.102 "cd /home/ubuntu/jarvis && chmod +x setup_and_restart.sh && ./setup_and_restart.sh"
-        '''
-          }
-        }
-      }
-   }
-} 
-
- pipeline {
     agent any
 
+    environment {
+        DEPLOY_USER = "ubuntu"
+        EC2_IP = "65.0.87.102"
+        SSH_KEY_CREDENTIAL = "ubuntu (javacicd)"
+        APP_DIR = "/home/ubuntu/jarvis-app"
+    }
+
     stages {
-        stage('Remote: Setup & Restart') {
+        stage('Checkout Repo') {
             steps {
-                sh '''
-                    ssh -o StrictHostKeyChecking=no ubuntu@65.0.87.102 "cd /home/ubuntu/jarvis && chmod +x setup_and_restart.sh && ./setup_and_restart.sh"
-                '''
+                checkout scm
+            }
+        }
+
+        stage('Deploy on EC2') {
+            steps {
+                sshagent(credentials: [SSH_KEY_CREDENTIAL]) {
+
+                    sh """
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${EC2_IP} '
+                        cd ${APP_DIR}
+                        git pull
+                        ${APP_DIR}/venv/bin/pip install -r requirements.txt
+                        sudo systemctl restart jarvis.service
+                        sudo systemctl status jarvis.service --no-pager
+                    '
+                    """
+                }
             }
         }
     }
-}
 
-    
+    post {
+        success {
+            echo "Deployment Successful!"
+        }
+        failure {
+            echo "Deployment Failed!"
+        }
+    }
+}
