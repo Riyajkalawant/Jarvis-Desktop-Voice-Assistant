@@ -1,21 +1,18 @@
 pipeline {
     agent any
-
     environment {
-        SSH_CRED = 'javacicd'           // Jenkins SSH credential ID
-        REMOTE_USER = 'ubuntu'          // EC2 username
-        REMOTE_IP = '65.0.87.102'      // EC2 public IP
+        SSH_CRED = 'javacicd'
+        REMOTE_USER = 'ubuntu'
+        REMOTE_IP = '65.0.87.102'
         REMOTE_DIR = '/home/ubuntu/jarvis'
         GIT_REPO = 'https://github.com/Riyajkalawant/Jarvis-Desktop-Voice-Assistant.git'
     }
-
     stages {
         stage('Checkout Repo') {
             steps {
-                git credentialsId: SSH_CRED, url: GIT_REPO
+                git branch: 'main', credentialsId: SSH_CRED, url: GIT_REPO
             }
         }
-
         stage('Package & Transfer') {
             steps {
                 sshagent([SSH_CRED]) {
@@ -26,7 +23,6 @@ pipeline {
                 }
             }
         }
-
         stage('Remote: Setup & Restart') {
             steps {
                 sshagent([SSH_CRED]) {
@@ -37,13 +33,8 @@ pipeline {
             }
         }
     }
-
     post {
-        success {
-            echo '✅ Deployment Successful!'
-        }
-        failure {
-            echo '❌ Deployment Failed!'
-        }
+        success { echo '✅ Deployment Successful!' }
+        failure { echo '❌ Deployment Failed!' }
     }
 }
