@@ -1,0 +1,50 @@
+pipeline {
+  agent any
+  environment {
+    REMOTE_USER = "ubuntu"
+    REMOTE_HOST = "3.108.235.28"
+    REMOTE_DIR  = "/home/ubuntu/jarvis"
+    CRED_ID     = "javaubuntu"
+  }
+
+
+  stages {
+    stage('Checkout') {
+      steps {
+        git branch: 'main', url: 'https://github.com/Riyajkalawant/Jarvis-Desktop-Voice-Assistant-project.git'
+      }
+    }
+
+    stage('Package & Transfer') {
+      steps {
+        sshagent(credentials: ["${CRED_ID}"]) {
+          sh '''
+            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "mkdir -p ${REMOTE_DIR}"
+            rsync -avz --delete --exclude='.git' ./ ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/
+          '''
+        }
+      }
+    }
+    stage('Remote: Setup & Restart') {
+    steps {
+    sshagent(credentials: ['javaubuntu']) {
+        sh '''
+            ssh -o StrictHostKeyChecking=no ubuntu@3.108.235.28 "cd /home/ubuntu/jarvis && chmod +x setup_and_restart.sh && ./setup_and_restart.sh"
+        '''
+          }
+        }
+      }
+   }
+} 
+
+    /*stage('Remote: Setup & Restart') {
+      steps {
+        sshagent(credentials: ["${CRED_ID}"]) {
+          ssh -o StrictHostKeyChecking=no ubuntu@3.108.235.28 "cd /home/ubuntu/jarvis && chmod +x setup_and_restart.sh && ./setup_and_restart.sh"
+
+          sh "ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'cd ${REMOTE_DIR} && ./setup_and_restart.sh'"
+        }
+      }
+    }
+  }
+}*/
