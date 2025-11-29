@@ -2,32 +2,37 @@ pipeline {
     agent any
 
     environment {
-        DEPLOY_USER = "ubuntu"
-        EC2_IP = "65.0.87.102"
-        SSH_KEY_CREDENTIAL = "ubuntu (javacicd)"
-        APP_DIR = "/home/ubuntu/jarvis-app"
+        SSH_CRED = 'javacicd'           // Jenkins SSH credential ID
+        REMOTE_USER = 'ubuntu'          // EC2 username
+        REMOTE_IP = '65.0.87.102'      // EC2 public IP
+        REMOTE_DIR = '/home/ubuntu/jarvis'
+        GIT_REPO = 'https://github.com/Riyajkalawant/Jarvis-Desktop-Voice-Assistant.git'
     }
 
     stages {
         stage('Checkout Repo') {
             steps {
-                checkout scm
+                git credentialsId: SSH_CRED, url: GIT_REPO
             }
         }
 
-        stage('Deploy on EC2') {
+        stage('Package & Transfer') {
             steps {
-                sshagent(credentials: [SSH_KEY_CREDENTIAL]) {
+                sshagent([SSH_CRED]) {
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_IP} "mkdir -p ${REMOTE_DIR}"
+                        rsync -avz --delete --exclude=.git ./ ${REMOTE_USER}@${REMOTE_IP}:${REMOTE_DIR}/
+                    '''
+                }
+            }
+        }
 
-                    sh """
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${EC2_IP} '
-                        cd ${APP_DIR}
-                        git pull
-                        ${APP_DIR}/venv/bin/pip install -r requirements.txt
-                        sudo systemctl restart jarvis.service
-                        sudo systemctl status jarvis.service --no-pager
-                    '
-                    """
+        stage('Remote: Setup & Restart') {
+            steps {
+                sshagent([SSH_CRED]) {
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_IP} "cd ${REMOTE_DIR} && chmod +x setup_and_restart.sh && ./setup_and_restart.sh"
+                    '''
                 }
             }
         }
@@ -35,10 +40,10 @@ pipeline {
 
     post {
         success {
-            echo "Deployment Successful!"
+            echo '✅ Deployment Successful!'
         }
         failure {
-            echo "Deployment Failed!"
+            echo '❌ Deployment Failed!'
         }
     }
 }
